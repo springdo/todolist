@@ -8,8 +8,8 @@ pipeline {
     environment {
         // Global Vars
         NAMESPACE_PREFIX="<YOUR_NAME>"
-        GITLAB_DOMAIN = "gitlab.apps.change.me.com"
-        GITLAB_PROJECT = "<GIT_USERNAME>"
+        GITLAB_DOMAIN = "<GITLAB_FQDN>"
+        GITLAB_USERNAME = "<GITLAB_USERNAME>"
 
         PIPELINES_NAMESPACE = "${NAMESPACE_PREFIX}-ci-cd"
         APP_NAME = "todolist"
@@ -18,7 +18,7 @@ pipeline {
         JOB_NAME = "${JOB_NAME}".replace("/", "-")
 
         GIT_SSL_NO_VERIFY = true
-        GIT_CREDENTIALS = credentials('jenkins-git-creds')
+        GIT_CREDENTIALS = credentials("${NAMESPACE_PREFIX}-ci-cd-gitlab-auth")
     }
 
     // The options directive is for configuration that applies to the whole job.
@@ -73,16 +73,13 @@ pipeline {
                 }
             }
             steps {
-                // git branch: 'develop',
-                //     credentialsId: 'jenkins-git-creds',
-                //     url: 'https://gitlab-${NAMESPACE_PREFIX}-ci-cd.apps.somedomain.com/${NAMESPACE_PREFIX}/todolist.git'
                 sh 'printenv'
 
                 echo '### Install deps ###'
                 sh 'npm install'
 
                 echo '### Running tests ###'
-                sh 'npm run test:all:ci'
+                // sh 'npm run test:all:ci'
 
                 echo '### Running build ###'
                 sh 'npm run build:ci'
@@ -96,11 +93,10 @@ pipeline {
             post {
                 always {
                     archive "**"
-                    junit 'test-report.xml'
-                    junit 'reports/server/mocha/test-results.xml'
+                    // ADD TESTS REPORTS HERE
+            
                     // publish html
 
-                    // Notify slack or some such
                 }
                 success {
                     echo "Git tagging"
@@ -108,7 +104,7 @@ pipeline {
                         git config --global user.email "jenkins@jmail.com"
                         git config --global user.name "jenkins-ci"
                         git tag -a ${JENKINS_TAG} -m "JENKINS automated commit"
-                        # git push https://${GIT_CREDENTIALS_USR}:${GIT_CREDENTIALS_PSW}@${GITLAB_DOMAIN}/${GITLAB_PROJECT}/${APP_NAME}.git --tags
+                        git push https://${GIT_CREDENTIALS_USR}:${GIT_CREDENTIALS_PSW}@${GITLAB_DOMAIN}/${GITLAB_USERNAME}/${APP_NAME}.git --tags
                     '''
                 }
                 failure {
@@ -176,30 +172,6 @@ pipeline {
                     verifyReplicaCount: 'true', 
                     waitTime: '',
                     waitUnit: 'sec'
-            }
-        }
-        stage("e2e test") {
-            agent {
-                node {
-                    label "jenkins-slave-npm"
-                }
-            }
-            when {
-                expression { GIT_BRANCH ==~ /(.*master|.*develop)/ }
-            }
-            steps {
-              unstash 'source'
-
-              echo '### Install deps ###'
-              sh 'npm install'
-
-              echo '### Running end to end tests ###'
-              sh 'npm run e2e:ci'
-            }
-            post {
-                always {
-                    junit 'reports/e2e/specs/*.xml'
-                }
             }
         }
     }
